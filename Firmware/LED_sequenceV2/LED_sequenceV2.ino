@@ -19,11 +19,11 @@ float DebugCounter;
 int period;
   int BUTTON1 = 7;
   int BUTTON2 = 6;
-const  int R[] = {5,6,7,8};
-const  int G[] = {18,19,0,1};
-const  int B[] = {14,15,16,17};
-bool LEDSequence[16][4] = {{F, F, F, F}, //1
-                           {F, T, F, F}, //3
+  int R[] = {5,6,7,8};
+  int G[] = {18,19,0,1};
+  int B[] = {14,15,16,17};
+bool LEDSequence[16][4] = {{F, F, F, F}, //pin 1
+                           {F, T, F, F}, //pin 3
                            {F, F, T, F}, //5
                            {F, T, T, F}, //7
                            {F, F, F, T}, //9
@@ -56,7 +56,7 @@ int numofBLUEs = 16;
 //////////////////////////////////// SETUP ////////////////////////////////////
 void setup() {
   //////////////// DWM SETUP ///////////////////
-  Serial.begin(115200);
+  //Serial.begin(115200);
   delay(1000);
   //init the configuration
   DW1000Ranging.initCommunication(PIN_RST, PIN_SS, PIN_IRQ); //Reset, CS, IRQ pin
@@ -71,19 +71,35 @@ void setup() {
   DW1000Ranging.startAsTag("7D:00:22:EA:82:60:3B:9C", DW1000.MODE_LONGDATA_RANGE_LOWPOWER);
   //////////////// LED pins SETUP ///////////////////
 
-
-   for(int i=0; i<4; i++)
+// setup control pins as outputs
+  for(int i=0; i<4; i++)
   {pinMode(R[i], OUTPUT);
    pinMode(B[i], OUTPUT);
    pinMode(G[i], OUTPUT);
    pinMode(4, OUTPUT);
   }
-  digitalWrite(4, LOW); // ENABLE DECODER
+
+  for(int i=0; i<4; i++)
+  {
+    digitalWrite(G[i], LOW);
+  }
+  
+  digitalWrite(4,LOW); //ENABLE DECODER
 }
 
 ////////////////////////////////// MAIN LOOP ////////////////////////////////////
 void loop() {
+
+for(int i=0; i<4; i++)
+  {
+    digitalWrite(G[i], LOW);
+  }
+  
   DW1000Ranging.loop(); /////// DWM LOOP ///////////////////////////
+  for(int i=0; i<4; i++)
+  {
+    digitalWrite(G[i], LOW);
+  }
   
   bool BUTTONPUSH1 = false;
   bool BUTTONPUSH2 = false;
@@ -105,12 +121,12 @@ void loop() {
   if((BUTTONPUSH1 || BUTTONPUSH2)){
     if(BUTTONPUSH1){
         LEDencode(R[0], R[1], R[2], R[3], 0,numofREDs);              // Output LED 4Bit combo
-        //LEDencode(G[0], G[1], G[2], G[3], 0,numofGREENs);
+        LEDencode(G[0], G[1], G[2], G[3], 1,numofGREENs);
         LEDencode(B[0], B[1], B[2], B[3], 2,numofBLUEs);
     }
     if(BUTTONPUSH2){
         LEDencode(R[0], R[1], R[2], R[3], 0,numofREDs);              // Output LED 4Bit combo
-        //LEDencode(G[0], G[1], G[2], G[3], 15,numofGREENs);
+        LEDencode(G[0], G[1], G[2], G[3], 15,numofGREENs);
         LEDencode(B[0], B[1], B[2], B[3], 14,numofBLUEs);
     }
     if(BUTTONPUSH2 & BUTTONPUSH1){
@@ -132,36 +148,41 @@ void loop() {
       }
     }
   }
+   
+   
    else{
-  ///////////////////////// LED ROTATION ///////////////////////////
-      float LEDfrequency = 60;
+///////////////////////// LED ROTATION ///////////////////////////
+  float LEDfrequency = 60;
   period = (int)((1 / (LEDfrequency * 16)) * 1000);
-  float maxDist = 20; // 0 to 30 meters
+  float maxDist = 15; // 0 to 30 meters //Mapping the distance and the range 
   float RawDist = rawRange; // 0 to 30 meters
-  
-  ////////////////////////// AUDIO CODE ///////////////////////////
+
+    ////////////////////////// AUDIO CODE ///////////////////////////
   int highestFreq = 5000;
   int frequency = constrain(((1-(rawRange/maxDist))*highestFreq),40,highestFreq);  // the father the lower the fequency becomes
   if(rawRange>0){
       tone(3,frequency);
       //Serial.println(frequency);
-  }////////////////////////// AUDIO CODE end ///////////////////////////
+  }
 
-
-  float REDselect = (RawDist / maxDist) * 16; 
-  LEDselect( REDselect, 0,0); // select LEDs up to the current distance index
+ 
+  float REDselect = (1 -(RawDist / maxDist)) * 16;
+  LEDselect(REDselect,0, 0); // select LEDs up to the current distance index
 
   timer = millis();
-  LEDcount =  (millis()) % (period + 1) ; // Count time
-  BLUEindex = (BLUEindex+1)%16;                  
-  BLUEindex = constrain(BLUEindex  ,(int)REDselect-2, 15);
+  LEDcount =  (millis()) % (period + 1) ;                       // Count time
+
+  BLUEindex = (BLUEindex+1)%16;
+  BLUEindex = constrain(BLUEindex, (int)(REDselect-2), 15);
   
   LEDencode(R[0], R[1], R[2], R[3], REDindex,numofREDs);        // Output LED 4Bit combo
+  //LEDencode(G[0], G[1], G[2], G[3], REDindex,numofGREENs);
   LEDencode(B[0], B[1], B[2], B[3], BLUEindex,numofBLUEs);
 
   // Switch to next 4 bit encode in the sequence based on mask
   REDindex = LEDswitch(REDindex   , REDstatus, numofREDs); // Output LED 4Bit combo
-  //BLUEindex = LEDswitch(BLUEindex  ,BLUEstatus,numofBLUEs);
+  //GREENindex = LEDswitch(GREENindex ,BLUEstatus, numofGREENs);
+  //BLUEindex = LEDswitch(BLUEindex, BLUEstatus, numofBLUEs);
   tone(3,100);
   if ((millis() % 100 + 1) >= (100)) {
     numofREDs = 0;
@@ -184,19 +205,18 @@ void LEDencode(int A0, int A1, int A2, int A3, int index, int NofLeds) {
   digitalWrite(A2, LEDSequence[index][2]);    // apply the sequence value from the 3rd colomn
   digitalWrite(A3, LEDSequence[index][3]);    // apply the sequence value from the 4th colomn
 }
-
 int LEDswitch(int index , int Status[], int NofLeds) {
   if (LEDcount >= (period)) {
     do {
       index = (index + 1) % NofLeds;
     } while (!(Status[index] == 1));
-    //Serial.print("num of LEDs: "); Serial.print(numofLEDs); Serial.print(" Next LED: "); Serial.println(index);
+
   }
   return index;
 }
 void LEDselect(float selR,float selG, float selB)
 {
-    for (int i = 0; i < 16; i++) {
+    for (int i = 1; i < 16; i++) {
       REDstatus[i] =  constrain(selR - i, 0, 1);
       GREENstatus[i] =  constrain(selG - i, 0, 1);
       BLUEstatus[i] =  constrain(selB - i, 0, 1);
@@ -205,19 +225,19 @@ void LEDselect(float selR,float selG, float selB)
 
  ////////////////// DWM SUPPORTING FUNCTIONS //////////////////////////////
  void newRange() {
-  Serial.print("from: "); Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX);
-  rawRange = DW1000Ranging.getDistantDevice()->getRange();
-  Serial.print("\t Range: "); Serial.print(DW1000Ranging.getDistantDevice()->getRange()); Serial.print(" m");
-  Serial.print("\t RX power: "); Serial.print(DW1000Ranging.getDistantDevice()->getRXPower()); Serial.println(" dBm");
+  //Serial.print("from: "); Serial.print(DW1000Ranging.getDistantDevice()->getShortAddress(), HEX); 
+  rawRange = DW1000Ranging.getDistantDevice()->getRange(); // prints ranging data in meters
+  //Serial.print("\t Range: "); Serial.print(DW1000Ranging.getDistantDevice()->getRange()); Serial.print(" m");
+  //Serial.print("\t RX power: "); Serial.print(DW1000Ranging.getDistantDevice()->getRXPower()); Serial.println(" dBm");
 }
 
 void newDevice(DW1000Device* device) {
-  Serial.print("ranging init; 1 device added ! -> ");
-  Serial.print(" short:");
-  Serial.println(device->getShortAddress(), HEX);
+  //Serial.print("ranging init; 1 device added ! -> ");
+  //Serial.print(" short:");
+  //Serial.println(device->getShortAddress(), HEX);
 }
 
 void inactiveDevice(DW1000Device* device) {
-  Serial.print("delete inactive device: ");
-  Serial.println(device->getShortAddress(), HEX);
+  //Serial.print("delete inactive device: ");
+  //Serial.println(device->getShortAddress(), HEX);
 }
